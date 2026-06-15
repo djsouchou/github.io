@@ -1,2 +1,2 @@
-# github.io
+# Chiptune
 Chiptune Synth
