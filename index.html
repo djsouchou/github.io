@@ -3,189 +3,320 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#00ff00">
-    <title>CHIP-MONSTER PWA</title>
-    <link rel="manifest" href="manifest.json">
+    <title>8-BIT GROOVE BOX</title>
     <style>
-        :root { --neon: #0f0; --bg: #050505; --panel: #111; }
-        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px; -webkit-user-select: none; user-select: none; }
-        .panel { border: 3px solid var(--neon); padding: 15px; background: var(--panel); box-shadow: 0 0 20px rgba(0,255,0,0.2); max-width: 500px; width: 100%; box-sizing: border-box; }
-        h1 { text-align: center; font-size: 1.2rem; margin: 0 0 10px 0; letter-spacing: 3px; background: var(--neon); color: #000; }
-        .section { border: 1px solid #333; padding: 10px; margin-bottom: 10px; border-radius: 4px; }
+        :root { --neon: #0f0; --bg: #050505; --panel: #111; --active: #fff; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px; overflow-x: hidden; }
+        .panel { border: 3px solid var(--neon); padding: 15px; background: var(--panel); box-shadow: 0 0 20px rgba(0,255,0,0.2); max-width: 800px; width: 100%; }
+        h1 { text-align: center; font-size: 1.2rem; margin: 0 0 10px 0; background: var(--neon); color: #000; padding: 5px; }
+        
+        /* Layout */
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .section { border: 1px solid #333; padding: 10px; border-radius: 4px; position: relative; }
         .section-title { font-size: 10px; color: #888; margin-bottom: 8px; text-transform: uppercase; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 5px; }
-        label { font-size: 10px; }
-        input[type="range"] { accent-color: var(--neon); width: 100%; cursor: pointer; }
-        select, button { background: #000; color: var(--neon); border: 1px solid var(--neon); padding: 8px; font-family: 'Courier New', monospace; cursor: pointer; }
-        .drone-active { background: var(--neon) !important; color: #000 !important; box-shadow: 0 0 10px var(--neon); }
-        .keyboard { display: flex; gap: 2px; justify-content: center; margin: 15px 0; height: 80px; }
-        .key { flex: 1; border: 1px solid var(--neon); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-size: 9px; cursor: pointer; position: relative; }
-        .key.black { background: #222; color: var(--neon); height: 60%; margin: 0 -8px; z-index: 1; min-width: 20px; }
-        .key.active { background: #fff !important; color: #000; }
-        .footer-controls { border-top: 2px solid var(--neon); padding-top: 10px; display: grid; grid-template-columns: 1fr 2fr; gap: 10px; align-items: center; }
+
+        /* Sequencer UI */
+        .seq-container { overflow-x: auto; margin-top: 10px; background: #000; padding: 10px; border: 1px solid #222; }
+        .seq-row { display: flex; align-items: center; margin-bottom: 2px; }
+        .seq-label { width: 60px; font-size: 9px; color: var(--neon); }
+        .steps { display: flex; gap: 2px; }
+        .step { width: 20px; height: 20px; border: 1px solid #333; cursor: pointer; }
+        .step.active { background: var(--neon); }
+        .step.current { border-color: var(--active); box-shadow: 0 0 5px var(--active); }
+        .step.drum-active { background: #0af; }
+
+        /* Controls */
+        .controls { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; flex-wrap: wrap; }
+        input[type="range"] { accent-color: var(--neon); }
+        button { background: #000; color: var(--neon); border: 1px solid var(--neon); padding: 8px 15px; cursor: pointer; font-family: inherit; }
+        button.playing { background: #f00; color: #fff; border-color: #f00; }
+        select { background: #000; color: var(--neon); border: 1px solid var(--neon); }
+
+        .note-select { font-size: 10px; background: #000; color: var(--neon); border: 1px solid #333; width: 22px; }
     </style>
 </head>
 <body>
+
 <div class="panel">
-    <h1>CHIP-MONSTER v1</h1>
-    <div class="grid">
+    <h1>CHIP-GROOVE BOX</h1>
+
+    <div class="controls">
+        <button id="playBtn" onclick="toggleTransport()">START / STOP</button>
+        <div>
+            <label style="font-size: 10px;">BPM: <span id="bpmVal">120</span></label><br>
+            <input type="range" id="bpm" min="70" max="240" value="120" oninput="updateBPM(this.value)">
+        </div>
+        <button onclick="clearSteps()">CLEAR ALL</button>
+        <button onclick="randomizeFX()">🎲 FX RAND</button>
+    </div>
+
+    <div class="grid-layout">
+        <!-- Synth Settings -->
         <div class="section">
-            <div class="section-title">Osc / Env</div>
-            <div class="row">
-                <select id="waveform">
-                    <option value="square">SQUARE</option>
-                    <option value="triangle">TRIANGLE</option>
-                    <option value="sawtooth">SAWTOOTH</option>
-                </select>
+            <div class="section-title">Synth Engine</div>
+            <select id="waveform">
+                <option value="square">SQUARE</option>
+                <option value="triangle">TRIANGLE</option>
+                <option value="sawtooth">SAWTOOTH</option>
+            </select>
+            <div style="font-size: 10px; margin-top:5px;">
+                REL: <input type="range" id="release" min="0.05" max="1" step="0.05" value="0.2" style="width:60px;">
+                DIST: <input type="range" id="distDrive" min="0" max="50" step="1" value="0" style="width:60px;">
             </div>
-            <div class="row"><label>ATK</label><input type="range" id="attack" min="0.01" max="0.5" step="0.01" value="0.01"></div>
-            <div class="row"><label>REL</label><input type="range" id="release" min="0.01" max="1.5" step="0.01" value="0.3"></div>
         </div>
+
+        <!-- Drone Switch -->
         <div class="section">
-            <div class="section-title">Distortion</div>
-            <div class="row"><label>DRIVE</label><input type="range" id="distDrive" min="0" max="100" step="1" value="0"></div>
-            <div class="row"><label>VOL</label><input type="range" id="distLevel" min="0" max="1" step="0.01" value="0.7"></div>
+            <div class="section-title">Drone / Master</div>
+            <button id="droneBtn" onclick="toggleDrone()" style="width:100%; font-size:10px;">DRONE: OFF</button>
+            <div style="font-size: 10px; margin-top:5px;">
+                VOL: <input type="range" id="masterVol" min="0" max="1" step="0.05" value="0.5" style="width:60px;">
+            </div>
         </div>
     </div>
-    <div class="grid">
-        <div class="section">
-            <div class="section-title">Delay</div>
-            <div class="row"><label>TIME</label><input type="range" id="delayTime" min="0" max="1" step="0.01" value="0.3"></div>
-            <div class="row"><label>FEEDBACK</label><input type="range" id="delayFb" min="0" max="0.9" step="0.01" value="0.4"></div>
-        </div>
-        <div class="section">
-            <div class="section-title">Reverb</div>
-            <div class="row"><label>SIZE</label><input type="range" id="revSize" min="0.01" max="3" step="0.1" value="1"></div>
-            <div class="row"><label>MIX</label><input type="range" id="revMix" min="0" max="1" step="0.01" value="0.2"></div>
-        </div>
+
+    <!-- Drum Sequencer -->
+    <div class="section">
+        <div class="section-title">Drum Sequencer (BD, SD, HH, CYM, CBL)</div>
+        <div id="drum-seq" class="seq-container"></div>
     </div>
-    <div class="keyboard" id="keyboard"></div>
-    <div class="footer-controls">
-        <button id="droneBtn" onclick="toggleDrone()">DRONE: OFF</button>
-        <div class="row">
-            <label>MASTER VOL</label>
-            <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.5">
-        </div>
+
+    <!-- Phrase Sequencer -->
+    <div class="section">
+        <div class="section-title">Melody Sequencer (C3-C4)</div>
+        <div id="melody-seq" class="seq-container"></div>
     </div>
-    <button style="width:100%; margin-top:10px; font-weight:bold;" onclick="randomize()">🎲 RANDOMIZE</button>
 </div>
+
 <script>
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const distortionNode = audioCtx.createWaveShaper();
-    const delayNode = audioCtx.createDelay(2.0);
-    const delayFeedback = audioCtx.createGain();
-    const delayMix = audioCtx.createGain();
-    const reverbNode = audioCtx.createConvolver();
-    const reverbMix = audioCtx.createGain();
     const masterGain = audioCtx.createGain();
-    const finalOut = audioCtx.createGain();
+    const distNode = audioCtx.createWaveShaper();
+    distNode.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
 
-    function makeDistCurve(amount) {
-        let n = 44100, curve = new Float32Array(n), deg = Math.PI / 180, x;
+    // --- Drum Synthesis ---
+    const playDrum = (type) => {
+        const t = audioCtx.currentTime;
+        const out = distNode;
+        if (type === 'BD') { // Bass Drum
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.frequency.setValueAtTime(150, t);
+            osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.2);
+            g.gain.setValueAtTime(1, t);
+            g.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+            osc.connect(g); g.connect(out);
+            osc.start(t); osc.stop(t + 0.2);
+        } else if (type === 'SD') { // Snare
+            const noise = audioCtx.createBufferSource();
+            const g = audioCtx.createGain();
+            const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for(let i=0; i<data.length; i++) data[i] = Math.random() * 2 - 1;
+            noise.buffer = buffer;
+            g.gain.setValueAtTime(0.5, t);
+            g.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+            noise.connect(g); g.connect(out);
+            noise.start(t);
+        } else if (type === 'HH') { // Hi-Hat
+            const noise = audioCtx.createBufferSource();
+            const g = audioCtx.createGain();
+            const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.02, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for(let i=0; i<data.length; i++) data[i] = Math.random() * 2 - 1;
+            noise.buffer = buffer;
+            g.gain.setValueAtTime(0.3, t);
+            g.gain.exponentialRampToValueAtTime(0.01, t + 0.02);
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = "highpass"; filter.frequency.value = 8000;
+            noise.connect(filter); filter.connect(g); g.connect(out);
+            noise.start(t);
+        } else if (type === 'CYM') { // Crash
+            const noise = audioCtx.createBufferSource();
+            const g = audioCtx.createGain();
+            const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.8, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for(let i=0; i<data.length; i++) data[i] = Math.random() * 2 - 1;
+            noise.buffer = buffer;
+            g.gain.setValueAtTime(0.4, t);
+            g.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = "highpass"; filter.frequency.value = 5000;
+            noise.connect(filter); filter.connect(g); g.connect(out);
+            noise.start(t);
+        } else if (type === 'CBL') { // Cowbell
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc1.frequency.value = 800; osc2.frequency.value = 540;
+            osc1.type = 'square'; osc2.type = 'square';
+            g.gain.setValueAtTime(0.3, t);
+            g.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+            osc1.connect(g); osc2.connect(g); g.connect(out);
+            osc1.start(t); osc2.start(t);
+            osc1.stop(t + 0.1); osc2.stop(t + 0.1);
+        }
+    };
+
+    // --- Sequencer Logic ---
+    let bpm = 120;
+    let isPlaying = false;
+    let currentStep = 0;
+    let timerId = null;
+
+    const drumTypes = ['BD', 'SD', 'HH', 'CYM', 'CBL'];
+    const drumData = Array(5).fill().map(() => Array(16).fill(false));
+    const melodyData = Array(16).fill(null);
+    const notes = [null, 'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3', 'C4'];
+    const freqs = { 'C3':130.81, 'D3':146.83, 'E3':164.81, 'F3':174.61, 'G3':196.00, 'A3':220.00, 'B3':246.94, 'C4':261.63 };
+
+    function initSequencer() {
+        const drumSeq = document.getElementById('drum-seq');
+        drumTypes.forEach((type, rowIndex) => {
+            const row = document.createElement('div');
+            row.className = 'seq-row';
+            row.innerHTML = `<div class="seq-label">${type}</div>`;
+            const stepsDiv = document.createElement('div');
+            stepsDiv.className = 'steps';
+            for (let i = 0; i < 16; i++) {
+                const step = document.createElement('div');
+                step.className = 'step';
+                step.id = `drum-${rowIndex}-${i}`;
+                step.onclick = () => {
+                    drumData[rowIndex][i] = !drumData[rowIndex][i];
+                    step.classList.toggle('drum-active');
+                };
+                stepsDiv.appendChild(step);
+            }
+            row.appendChild(stepsDiv);
+            drumSeq.appendChild(row);
+        });
+
+        const melodySeq = document.getElementById('melody-seq');
+        const row = document.createElement('div');
+        row.className = 'seq-row';
+        row.innerHTML = `<div class="seq-label">NOTE</div>`;
+        const stepsDiv = document.createElement('div');
+        stepsDiv.className = 'steps';
+        for (let i = 0; i < 16; i++) {
+            const select = document.createElement('select');
+            select.className = 'note-select';
+            select.id = `melody-${i}`;
+            notes.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n || '';
+                opt.innerText = n || '-';
+                select.appendChild(opt);
+            });
+            select.onchange = (e) => {
+                melodyData[i] = e.target.value || null;
+                select.style.borderColor = e.target.value ? 'var(--neon)' : '#333';
+            };
+            stepsDiv.appendChild(select);
+        }
+        row.appendChild(stepsDiv);
+        melodySeq.appendChild(row);
+    }
+
+    function toggleTransport() {
+        isPlaying = !isPlaying;
+        const btn = document.getElementById('playBtn');
+        if (isPlaying) {
+            btn.innerText = "STOP";
+            btn.classList.add('playing');
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            runSequencer();
+        } else {
+            btn.innerText = "START / STOP";
+            btn.classList.remove('playing');
+            clearTimeout(timerId);
+        }
+    }
+
+    function runSequencer() {
+        if (!isPlaying) return;
+
+        // Visual Highlight
+        document.querySelectorAll('.step, .note-select').forEach(el => el.classList.remove('current'));
+        for(let r=0; r<5; r++) document.getElementById(`drum-${r}-${currentStep}`).classList.add('current');
+        document.getElementById(`melody-${currentStep}`).classList.add('current');
+
+        // Play Sound
+        drumTypes.forEach((type, idx) => {
+            if (drumData[idx][currentStep]) playDrum(type);
+        });
+
+        const note = melodyData[currentStep];
+        if (note) playSynth(freqs[note]);
+
+        // Next Step
+        currentStep = (currentStep + 1) % 16;
+        const stepTime = (60 / bpm) / 4 * 1000; // 16分音符
+        timerId = setTimeout(runSequencer, stepTime);
+    }
+
+    function playSynth(freq) {
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = document.getElementById('waveform').value;
+        osc.frequency.value = freq;
+        const rel = parseFloat(document.getElementById('release').value);
+        g.gain.setValueAtTime(0.3, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + rel);
+        osc.connect(g); g.connect(distNode);
+        osc.start(t); osc.stop(t + rel);
+    }
+
+    function updateBPM(val) {
+        bpm = val;
+        document.getElementById('bpmVal').innerText = val;
+    }
+
+    function clearSteps() {
+        drumData.forEach(row => row.fill(false));
+        melodyData.fill(null);
+        document.querySelectorAll('.step').forEach(s => s.classList.remove('drum-active'));
+        document.querySelectorAll('.note-select').forEach(s => { s.value = ''; s.style.borderColor = '#333'; });
+    }
+
+    function randomizeFX() {
+        document.getElementById('distDrive').value = Math.random() * 50;
+        document.getElementById('release').value = 0.05 + Math.random() * 0.5;
+        // 歪み曲線の更新
+        const amt = document.getElementById('distDrive').value * 1;
+        const n = 44100;
+        const curve = new Float32Array(n);
+        const deg = Math.PI / 180;
         for (let i = 0; i < n; ++i ) {
-            x = i * 2 / n - 1;
-            curve[i] = (3 + amount) * x * 20 * deg / (Math.PI + amount * Math.abs(x));
+            let x = i * 2 / n - 1;
+            curve[i] = (3 + amt) * x * 20 * deg / (Math.PI + amt * Math.abs(x));
         }
-        return curve;
+        distNode.curve = curve;
     }
 
-    function buildReverb() {
-        const len = audioCtx.sampleRate * parseFloat(document.getElementById('revSize').value);
-        const buf = audioCtx.createBuffer(2, len, audioCtx.sampleRate);
-        for(let c=0; c<2; c++) {
-            let data = buf.getChannelData(c);
-            for(let i=0; i<len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/len, 3);
-        }
-        reverbNode.buffer = buf;
-    }
-    buildReverb();
-
-    masterGain.connect(distortionNode);
-    distortionNode.connect(finalOut);
-    distortionNode.connect(delayNode);
-    delayNode.connect(delayFeedback);
-    delayFeedback.connect(delayNode);
-    delayNode.connect(delayMix);
-    delayMix.connect(finalOut);
-    distortionNode.connect(reverbNode);
-    reverbNode.connect(reverbMix);
-    reverbMix.connect(finalOut);
-    finalOut.connect(audioCtx.destination);
-
-    const activeOscs = {};
     let isDrone = false;
-    const NOTES = {'a':261.63, 'w':277.18, 's':293.66, 'e':311.13, 'd':329.63, 'f':349.23, 't':369.99, 'g':392.00, 'y':415.30, 'h':440.00, 'u':466.16, 'j':523.25};
-    const kb = document.getElementById('keyboard');
-    Object.keys(NOTES).forEach(k => {
-        const isBlack = "wetyu".includes(k);
-        const d = document.createElement('div');
-        d.className = `key ${isBlack ? 'black' : ''}`;
-        d.id = `key-${k}`;
-        d.innerHTML = k.toUpperCase();
-        d.onmousedown = (e) => { e.preventDefault(); playNote(k); };
-        d.onmouseup = () => !isDrone && stopNote(k);
-        d.ontouchstart = (e) => { e.preventDefault(); playNote(k); };
-        d.ontouchend = () => !isDrone && stopNote(k);
-        kb.appendChild(d);
-    });
-
+    let droneOsc = null;
     function toggleDrone() {
         isDrone = !isDrone;
         const btn = document.getElementById('droneBtn');
         btn.innerText = isDrone ? "DRONE: ON" : "DRONE: OFF";
-        btn.className = isDrone ? "drone-active" : "";
-        if(!isDrone) Object.keys(activeOscs).forEach(k => stopNote(k));
+        btn.classList.toggle('drone-active');
+        if (isDrone) {
+            droneOsc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            droneOsc.type = 'sawtooth';
+            droneOsc.frequency.value = 55; // Low A
+            g.gain.value = 0.1;
+            droneOsc.connect(g); g.connect(distNode);
+            droneOsc.start();
+        } else if (droneOsc) {
+            droneOsc.stop();
+        }
     }
 
-    function playNote(k) {
-        if (activeOscs[k]) { if(isDrone) stopNote(k); return; }
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        distortionNode.curve = makeDistCurve(parseFloat(document.getElementById('distDrive').value));
-        delayNode.delayTime.value = parseFloat(document.getElementById('delayTime').value);
-        delayFeedback.gain.value = parseFloat(document.getElementById('delayFb').value);
-        delayMix.gain.value = 0.4;
-        reverbMix.gain.value = parseFloat(document.getElementById('revMix').value);
-        finalOut.gain.value = parseFloat(document.getElementById('masterVol').value);
-
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = document.getElementById('waveform').value;
-        osc.frequency.value = NOTES[k];
-        const atk = parseFloat(document.getElementById('attack').value);
-        gain.gain.setValueAtTime(0, audioCtx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + atk);
-        osc.connect(gain);
-        gain.connect(masterGain);
-        osc.start();
-        activeOscs[k] = { osc, gain };
-        document.getElementById(`key-${k}`).classList.add('active');
-    }
-
-    function stopNote(k) {
-        if (!activeOscs[k]) return;
-        const { osc, gain } = activeOscs[k];
-        const rel = parseFloat(document.getElementById('release').value);
-        gain.gain.cancelScheduledValues(audioCtx.currentTime);
-        gain.gain.setValueAtTime(gain.gain.value, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + rel);
-        osc.stop(audioCtx.currentTime + rel);
-        delete activeOscs[k];
-        document.getElementById(`key-${k}`).classList.remove('active');
-    }
-
-    function randomize() {
-        document.getElementById('distDrive').value = Math.random() * 100;
-        document.getElementById('delayTime').value = Math.random() * 0.5;
-        document.getElementById('delayFb').value = Math.random() * 0.7;
-        document.getElementById('revMix').value = Math.random() * 0.5;
-        document.getElementById('release').value = 0.1 + Math.random() * 1.0;
-        buildReverb();
-    }
-    document.getElementById('revSize').onchange = buildReverb;
-    window.onkeydown = e => NOTES[e.key.toLowerCase()] && playNote(e.key.toLowerCase());
-    window.onkeyup = e => !isDrone && NOTES[e.key.toLowerCase()] && stopNote(e.key.toLowerCase());
+    initSequencer();
 </script>
 </body>
 </html>
